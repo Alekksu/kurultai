@@ -342,13 +342,12 @@ function renderSiteMeta() {
     );
   }
 
-  if (site.telegramUrl) {
-    document.querySelectorAll('[data-telegram]').forEach((el) => {
-      el.href = site.telegramUrl;
-      el.target = '_blank';
-      el.rel = 'noopener noreferrer';
-    });
-  }
+const telegramUrl = site.telegramUrl || 'https://t.me/join/kurultaikvlt';
+  document.querySelectorAll('[data-telegram]').forEach((el) => {
+    el.href = telegramUrl;
+    el.target = '_blank';
+    el.rel = 'noopener noreferrer';
+  });
 }
 
 /* ---------------- INTERACTIVE MAP ---------------- */
