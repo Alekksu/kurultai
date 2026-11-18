@@ -6,6 +6,252 @@ const state = {
   displayedNews: []
 };
 
+// 1. Track active language in state (defaults to saved choice or 'en')
+state.lang = localStorage.getItem('siteLang') || 'en';
+
+// 2. Helper to pick localized field with automatic English fallback
+// Example: tField(site, 'siteTitle') checks site.siteTitleRu / site.siteTitleUz -> falls back to site.siteTitle
+function tField(obj, key) {
+  if (!obj) return '';
+  if (state.lang === 'ru' && obj[`${key}Ru`]) return obj[`${key}Ru`];
+  if (state.lang === 'uz' && obj[`${key}Uz`]) return obj[`${key}Uz`];
+  return obj[key] || '';
+}
+
+// 3. Wire up the EN / RU / UZ buttons and re-render active views
+function initLanguageSwitch() {
+  const buttons = document.querySelectorAll('.lang-btn[data-lang]');
+  if (!buttons.length) return;
+
+const syncButtons = () => {
+    buttons.forEach((btn) => {
+      btn.classList.toggle('is-active', btn.dataset.lang === state.lang);
+    });
+    document.documentElement.lang = state.lang;
+    applyLanguageUpdates();
+  };
+
+  buttons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const nextLang = btn.dataset.lang;
+      if (!nextLang || nextLang === state.lang) return;
+      state.lang = nextLang;
+      localStorage.setItem('siteLang', nextLang);
+      syncButtons();
+    });
+  });
+
+  syncButtons();
+}
+
+function applyStaticTranslations() {
+  document.querySelectorAll('[data-i18n]').forEach((el) => {
+    const key = el.dataset.i18n;
+    const text = t(key);
+    if (text) el.textContent = text;
+  });
+}
+
+function applyLanguageUpdates() {
+  applyStaticTranslations();
+  renderSiteMeta();
+  initMap();
+  renderLegend();
+  renderStateChips();
+  if (state.selectedStateId && state.data?.states?.[state.selectedStateId]) {
+    renderStateDetails(state.data.states[state.selectedStateId]);
+  }
+  renderParties();
+  renderNews(false, false);
+  renderComments();
+}
+
+const UI_STRINGS = {
+  en: {
+    datelineEdition: 'Politics · Elections · Analysis',
+    navMap: 'Map',
+    navParties: 'Parties',
+    navNews: 'News',
+    navComments: 'Comments',
+    mapEyebrow: 'Interactive Map',
+    mapHeading: 'Who leads where',
+    mapSubtitle: 'Each region is colored by the party with the highest vote share. Hover for a quick look, then select a region for the full breakdown.',
+    stateProfileEyebrow: 'State profile',
+    selectStateTitle: 'Select a state',
+    selectStateBody: 'Tap or click a region on the map, or pick one above, to see its capital, population, party results and key facts.',
+    capital: 'Capital',
+    population: 'Population',
+    voteShare: 'Vote Share',
+    partyPopularity: 'Party Popularity',
+    keyFacts: 'Key Facts',
+    clickForDetails: 'Click for details',
+    clickForProfile: 'Click to view profile',
+    ofStates: '{count} of {total} states',
+    nonVotingTerritory: 'Non-voting territory',
+    occupiedByWhites: 'Occupied by Whites',
+    occupiedByReds: 'Occupied by Reds',
+    occupiedByAlash: 'Occupied by Alash',
+    nonVotingReasonPrefix: 'State is not voting due to:',
+    noReasonSpecified: 'No reason specified.',
+    leadsBy: '{party} leads by {margin} pts',
+    leadsWith: '{party} leads with {pct}%',
+    partiesEyebrow: 'The contenders',
+    partiesHeading: 'Political parties',
+    partiesSubtitle: 'Who they are, who leads them and where they are strongest.',
+    leader: 'Leader',
+    ideology: 'Ideology',
+    strongholds: 'Strongholds',
+    leadsIn: 'Leads in',
+    noStatePlurality: 'No state plurality',
+    newsEyebrow: "Today's reading",
+    newsHeading: 'Top stories',
+    newsSubtitle: 'Four stories picked at random from the newsroom archive.',
+    shuffleNews: 'Shuffle News',
+    readDispatch: 'Read dispatch →',
+    dispatch: 'Dispatch',
+    newsLoadedStatus: 'Loaded four new stories.',
+    liveFeed: 'Live feed preview',
+    commentsHeading: 'Reader voices',
+    recentMessages: '{count} recent messages from Telegram',
+    readerFallback: 'Reader',
+    joinTelegram: 'Join & Comment on Telegram',
+    commentsFoot: 'Read-only on this site. Replies are posted in our Telegram channel.',
+    footerNote: 'All parties, regions, results and stories on this site are fictional sample data.',
+    followTelegram: 'Follow on Telegram',
+    discussTelegram: 'Discuss on Telegram',
+    close: 'Close'
+  },
+  ru: {
+    datelineEdition: 'Политика · Выборы · Аналитика',
+    navMap: 'Карта',
+    navParties: 'Партии',
+    navNews: 'Новости',
+    navComments: 'Комментарии',
+    mapEyebrow: 'Интерактивная карта',
+    mapHeading: 'Кто лидирует в регионах',
+    mapSubtitle: 'Каждый регион окрашен в цвет партии с наибольшей долей голосов. Наведите курсор для просмотра или выберите регион.',
+    stateProfileEyebrow: 'Профиль региона',
+    selectStateTitle: 'Выберите регион',
+    selectStateBody: 'Нажмите на регион на карте или выберите его из списка ниже, чтобы увидеть столицу, население, результаты партий и ключевые факты.',
+    capital: 'Столица',
+    population: 'Население',
+    voteShare: 'Доля голосов',
+    partyPopularity: 'Популярность партий',
+    keyFacts: 'Ключевые факты',
+    clickForDetails: 'Нажмите для подробностей',
+    clickForProfile: 'Нажмите, чтобы открыть профиль',
+    ofStates: '{count} из {total} регионов',
+    nonVotingTerritory: 'Неголосующая территория',
+    occupiedByWhites: 'Оккупировано белыми',
+    occupiedByReds: 'Оккупировано красными',
+    occupiedByAlash: 'Оккупировано «Алаш»',
+    nonVotingReasonPrefix: 'Регион не голосует по причине:',
+    noReasonSpecified: 'Причина не указана.',
+    leadsBy: '{party} лидирует с отрывом {margin} п.п.',
+    leadsWith: '{party} лидирует с {pct}%',
+    partiesEyebrow: 'Участники',
+    partiesHeading: 'Политические партии',
+    partiesSubtitle: 'Кто они, кто их возглавляет и где они наиболее сильны.',
+    leader: 'Лидер',
+    ideology: 'Идеология',
+    strongholds: 'Оплоты',
+    leadsIn: 'Лидирует в:',
+    noStatePlurality: 'Нет большинства ни в одном регионе',
+    newsEyebrow: 'Чтение на сегодня',
+    newsHeading: 'Главные новости',
+    newsSubtitle: 'Четыре случайные статьи из архива редакции.',
+    shuffleNews: 'Обновить новости',
+    readDispatch: 'Читать материал →',
+    dispatch: 'Сводка',
+    newsLoadedStatus: 'Загружены четыре новые статьи.',
+    liveFeed: 'Прямой эфир',
+    commentsHeading: 'Голоса читателей',
+    recentMessages: '{count} последних сообщений из Telegram',
+    readerFallback: 'Читатель',
+    joinTelegram: 'Присоединиться и обсудить в Telegram',
+    commentsFoot: 'Только для чтения на сайте. Комментарии публикуются в нашем Telegram-канале.',
+    footerNote: 'Все партии, регионы, результаты и новости на этом сайте основаны на исторической реконструкции.',
+    followTelegram: 'Подписаться в Telegram',
+    discussTelegram: 'Обсудить в Telegram',
+    close: 'Закрыть'
+  },
+  uz: {
+    datelineEdition: 'Siyosat · Saylovlar · Tahlil',
+    navMap: 'Xarita',
+    navParties: 'Partiyalar',
+    navNews: 'Xabarlar',
+    navComments: 'Fikrlar',
+    mapEyebrow: 'Jonli xarita',
+    mapHeading: 'Qayerda kim yetakchi',
+    mapSubtitle: "Har bir o‘lka eng ko‘p ovoz olgan partiya rangiga bo‘yalgan. Qisqa ko‘rish uchun ustiga olib boring, to‘liq ma’lumot uchun o‘lkani tanlang.",
+    stateProfileEyebrow: 'O‘lka ko‘rsatkichi',
+    selectStateTitle: 'O‘lkani tanlang',
+    selectStateBody: "Boshkent, aholi soni, partiyalar natijasi va asosiy ma’lumotlarni ko‘rish uchun xaritadagi o‘lkani bosing yoki yuqoridan tanlang.",
+    capital: 'Boshkent',
+    population: 'Aholi soni',
+    voteShare: 'Ovoz ulushi',
+    partyPopularity: 'Partiyalar nufuzi',
+    keyFacts: 'Asosiy ma’lumotlar',
+    clickForDetails: 'Tafsilotlar uchun bosing',
+    clickForProfile: 'Ko‘rsatkichni ochish uchun bosing',
+    ofStates: '{total} o‘lkadan {count} tasi',
+    nonVotingTerritory: 'Ovoz bermaydigan yer',
+    occupiedByWhites: 'Oqlar egallagan yer',
+    occupiedByReds: 'Qizillar egallagan yer',
+    occupiedByAlash: '«Alash» egallagan yer',
+    nonVotingReasonPrefix: 'O‘lka quyidagi sababga ko‘ra ovoz bermayapti:',
+    noReasonSpecified: 'Sababi ko‘rsatilmagan.',
+    leadsBy: '{party} {margin} foiz band farq bilan oldinda',
+    leadsWith: '{party} {pct}% ovoz bilan yetakchi',
+    partiesEyebrow: 'Kurashuvchilar',
+    partiesHeading: 'Siyosiy partiyalar',
+    partiesSubtitle: 'Ular kimlar, yetakchilari kim va qayerda eng kuchli.',
+    leader: 'Yetakchi',
+    ideology: 'G‘oya',
+    strongholds: 'Tayanch o‘lkalar',
+    leadsIn: 'Yetakchi o‘lkalari:',
+    noStatePlurality: 'Hech bir o‘lkada ustunlik yo‘q',
+    newsEyebrow: 'Bugungi o‘qish',
+    newsHeading: 'Asosiy xabarlar',
+    newsSubtitle: 'Tahririyat xazinasidan tasodifiy tanlangan to‘rtta yozuv.',
+    shuffleNews: 'Xabarlarni yangilash',
+    readDispatch: 'Yozuvni o‘qish →',
+    dispatch: 'Bildirish',
+    newsLoadedStatus: 'To‘rtta yangi xabar yuklandi.',
+    liveFeed: 'Jonli oqim',
+    commentsHeading: 'O‘quvchilar ovozi',
+    recentMessages: 'Telegram’dagi so‘nggi {count} ta yozishma',
+    readerFallback: 'O‘quvchi',
+    joinTelegram: 'Telegram’ga qo‘shiling va fikr bildiring',
+    commentsFoot: 'Saytda faqat o‘qish mumkin. Fikrlar Telegram kanalimizda yoziladi.',
+    footerNote: 'Ushbu saytdagi barcha partiyalar, o‘lkalar, natijalar va xabarlar to‘qima namuna ma’lumotlardir.',
+    followTelegram: 'Telegram’da kuzatish',
+    discussTelegram: 'Telegram’da muhokama qilish',
+    close: 'Yopish'
+  }
+};
+
+// 1. UI string helper
+function t(key, vars = {}) {
+  let str = UI_STRINGS[state.lang]?.[key] || UI_STRINGS.en[key] || key;
+  for (const [k, v] of Object.entries(vars)) {
+    str = str.replace(`{${k}}`, v);
+  }
+  return str;
+}
+
+// 2. Localized data field helper (reads `fieldRu` when currentLang === 'ru', etc.)
+function pick(obj, field) {
+  if (!obj) return '';
+  if (state.lang === 'ru' && obj[`${field}Ru`] !== undefined && obj[`${field}Ru`] !== '') {
+    return obj[`${field}Ru`];
+  }
+  if (state.lang === 'uz' && obj[`${field}Uz`] !== undefined && obj[`${field}Uz`] !== '') {
+    return obj[`${field}Uz`];
+  }
+  return obj[field] ?? '';
+}
+
 const $ = (id) => document.getElementById(id);
 
 function isNonVotingRegion(region) {
@@ -25,6 +271,7 @@ function isCountedRegion(id, region) {
   if (id === 'Aral_Sea' || id === 'AralSea' || region.name === 'Aral Sea') return false;
   return Boolean(region.results && Object.keys(region.results).length > 0);
 }
+
 function escapeHtml(str) {
   return String(str ?? '')
     .replace(/&/g, '&amp;')
@@ -34,10 +281,9 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
-
-
 function formatNumber(n) {
-  return Number(n).toLocaleString('en-US');
+  const locale = state.lang === 'ru' ? 'ru-RU' : 'en-US';
+  return Number(n).toLocaleString(locale);
 }
 
 function getParty(partyId, stateObj = null) {
@@ -79,10 +325,22 @@ function getPathForStateId(stateId) {
 
 function renderSiteMeta() {
   const site = state.data?.site || {};
-  const title = site.siteTitle || site.name;
+  const title =
+    pick(site, 'siteTitle') || pick(site, 'name') || pick(state.data, 'siteTitle');
+
   if ($('siteTitle') && title) $('siteTitle').textContent = title;
   if ($('footerTitle') && title) $('footerTitle').textContent = title;
-  if ($('editionDate') && site.edition) $('editionDate').textContent = site.edition;
+
+  const edition = pick(site, 'edition');
+  if ($('editionDate') && edition) $('editionDate').textContent = edition;
+
+  if ($('todayDate')) {
+    const localeMap = { en: 'en-US', ru: 'ru-RU', uz: 'uz-Latn-UZ' };
+    $('todayDate').textContent = new Date().toLocaleDateString(
+      localeMap[state.lang] || 'en-US',
+      { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }
+    );
+  }
 
   if (site.telegramUrl) {
     document.querySelectorAll('[data-telegram]').forEach((el) => {
@@ -101,7 +359,6 @@ function initMap() {
   const tooltip = $('mapTooltip');
   const hoverOutline = $('outlineHover');
 
-  // Clear any existing hatch overlays on re-init
   document.querySelectorAll('#stateShapes .state-hatch-overlay').forEach((el) => el.remove());
   if (labelsGroup) labelsGroup.innerHTML = '';
 
@@ -125,11 +382,11 @@ function initMap() {
 
     const winner = results[0]?.party;
     const nvMeta = isNonVoting ? getNonVotingMeta(region) : null;
+    const regionName = pick(region, 'name');
+    const winnerShort = winner ? pick(winner, 'shortName') : '';
 
-    // Always fill the base state shape with the leading party's color
     path.style.fill = winner?.color || '#DEDBD2';
 
-    // If non-voting, place a transparent-backed diagonal stripe overlay directly above the path
     if (isNonVoting) {
       path.classList.add('state--non-voting');
       const overlay = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -145,12 +402,11 @@ function initMap() {
     path.setAttribute(
       'aria-label',
       isNonVoting
-        ? `${region.name}: ${nvMeta.label}`
-        : `${region.name}: ${winner ? `${winner.shortName} leads with ${results[0].pct}%` : 'No data'}`
+        ? `${regionName}: ${nvMeta.label}`
+        : `${regionName}: ${winner ? t('leadsWith', { party: winnerShort, pct: results[0].pct }) : 'No data'}`
     );
 
-  
-    path.addEventListener('pointerenter', () => {
+    path.onpointerenter = () => {
       if (hoverOutline) {
         hoverOutline.setAttribute('d', path.getAttribute('d') || '');
         hoverOutline.classList.add('is-visible');
@@ -158,16 +414,16 @@ function initMap() {
       if (tooltip) {
         tooltip.hidden = false;
         tooltip.innerHTML = isNonVoting
-          ? `<span class="tip-name">${escapeHtml(region.name)}</span>
+          ? `<span class="tip-name">${escapeHtml(regionName)}</span>
              <span class="tip-lead"><span class="swatch" style="background:${nvMeta.swatch}"></span>${escapeHtml(nvMeta.label)}</span>
-             <span class="tip-hint">Click for details</span>`
+             <span class="tip-hint">${escapeHtml(t('clickForDetails'))}</span>`
           : winner
-            ? `<span class="tip-name">${escapeHtml(region.name)}</span>
-               <span class="tip-lead"><span class="swatch" style="background:${escapeHtml(winner.color)}"></span>${escapeHtml(winner.shortName)} · ${results[0].pct}%</span>
-               <span class="tip-hint">Click to view profile</span>`
-            : `<span class="tip-name">${escapeHtml(region.name)}</span>`;
+            ? `<span class="tip-name">${escapeHtml(regionName)}</span>
+               <span class="tip-lead"><span class="swatch" style="background:${escapeHtml(winner.color)}"></span>${escapeHtml(winnerShort)} · ${results[0].pct}%</span>
+               <span class="tip-hint">${escapeHtml(t('clickForProfile'))}</span>`
+            : `<span class="tip-name">${escapeHtml(regionName)}</span>`;
       }
-    });
+    };
 
     path.addEventListener('pointermove', (e) => {
       if (!tooltip || tooltip.hidden) return;
@@ -206,7 +462,6 @@ function renderOccupationOutlines() {
   container.innerHTML = '';
   defs.querySelectorAll('.occupation-mask, .occupation-filter').forEach((el) => el.remove());
 
-  // Group non-voting paths by their occupation type
   const groups = {};
   document.querySelectorAll('#stateShapes .state').forEach((path) => {
     const stateId = resolveStateId(path.id);
@@ -219,16 +474,14 @@ function renderOccupationOutlines() {
     groups[key].paths.push(path);
   });
 
-  // Tune these two values (in screen pixels):
-  const GAP_PX = 4;        // Gap between the actual state border and the inner outline
-  const THICKNESS_PX = 26;  // Thickness of the unified inner outline
+  const GAP_PX = 4;
+  const THICKNESS_PX = 26;
 
   Object.entries(groups).forEach(([key, { meta, paths }]) => {
     const outerFilterId = `occ-erode-outer-${key}`;
     const innerFilterId = `occ-erode-inner-${key}`;
     const maskId = `occ-mask-${key}`;
 
-    // Filter 1: shrinks the unified white bloc inward by GAP_PX
     const fOuter = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
     fOuter.setAttribute('id', outerFilterId);
     fOuter.setAttribute('class', 'occupation-filter');
@@ -238,7 +491,6 @@ function renderOccupationOutlines() {
     fOuter.appendChild(mOuter);
     defs.appendChild(fOuter);
 
-    // Filter 2: shrinks the unified black center inward by (GAP_PX + THICKNESS_PX)
     const fInner = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
     fInner.setAttribute('id', innerFilterId);
     fInner.setAttribute('class', 'occupation-filter');
@@ -248,12 +500,10 @@ function renderOccupationOutlines() {
     fInner.appendChild(mInner);
     defs.appendChild(fInner);
 
-    // Mask combines the two eroded silhouettes into a single unified inset ring
     const mask = document.createElementNS('http://www.w3.org/2000/svg', 'mask');
     mask.setAttribute('id', maskId);
     mask.setAttribute('class', 'occupation-mask');
 
-    // Step 1: White unified bloc eroded by GAP_PX (creates the outer gap inside the border)
     const whiteUnion = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     whiteUnion.setAttribute('filter', `url(#${outerFilterId})`);
     paths.forEach((p) => {
@@ -261,12 +511,11 @@ function renderOccupationOutlines() {
       wp.setAttribute('d', p.getAttribute('d') || '');
       wp.setAttribute('fill', '#fff');
       wp.setAttribute('stroke', '#fff');
-      wp.setAttribute('stroke-width', '6'); // Bridges white borders between touching states
+      wp.setAttribute('stroke-width', '6');
       whiteUnion.appendChild(wp);
     });
     mask.appendChild(whiteUnion);
 
-    // Step 2: Black unified bloc eroded by (GAP_PX + THICKNESS_PX) (hollows out the center)
     const blackHole = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     blackHole.setAttribute('filter', `url(#${innerFilterId})`);
     paths.forEach((p) => {
@@ -281,7 +530,6 @@ function renderOccupationOutlines() {
 
     defs.appendChild(mask);
 
-    // Render the solid occupation color through the unified inset ring mask
     const groupEl = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     groupEl.setAttribute('mask', `url(#${maskId})`);
 
@@ -314,12 +562,13 @@ function renderLegend() {
   legend.innerHTML = state.data.parties
     .map((p) => {
       const count = winCounts[p.id] || 0;
+      const statesLabel = t('ofStates', { count, total: totalVoting });
       return `
         <li class="legend-item">
           <span class="swatch" style="background:${escapeHtml(p.color)}"></span>
           <div>
-            <strong>${escapeHtml(p.shortName)} · ${count} of ${totalVoting} states</strong>
-            <span>${escapeHtml(p.name)}</span>
+            <strong>${escapeHtml(pick(p, 'shortName'))} · ${escapeHtml(statesLabel)}</strong>
+            <span>${escapeHtml(pick(p, 'name'))}</span>
           </div>
         </li>`;
     })
@@ -344,7 +593,7 @@ function renderStateChips() {
       return `
         <li>
           <button type="button" class="chip" data-state-chip="${escapeHtml(id)}" aria-pressed="${active}">
-            ${escapeHtml(s.name)}
+            ${escapeHtml(pick(s, 'name'))}
           </button>
         </li>`;
     })
@@ -385,31 +634,35 @@ const NON_VOTING_TYPES = {
     patternId: 'nonVotingHatch-independent',
     swatch: '#B8B4A8',
     stroke: '#8C887C',
-    label: 'Non-voting territory'
+    labelKey: 'nonVotingTerritory'
   },
   whites: {
     patternId: 'nonVotingHatch-whites',
     swatch: '#8EC49E',
     stroke: '#4E8F63',
-    label: 'Occupied by Whites'
+    labelKey: 'occupiedByWhites'
   },
   reds: {
     patternId: 'nonVotingHatch-reds',
     swatch: '#DF8E8E',
     stroke: '#B84B4B',
-    label: 'Occupied by Reds'
+    labelKey: 'occupiedByReds'
   },
   alash: {
     patternId: 'nonVotingHatch-alash',
     swatch: '#E5A86E',
     stroke: '#C47733',
-    label: 'Occupied by Alash'
+    labelKey: 'occupiedByAlash'
   }
 };
 
 function getNonVotingMeta(region) {
   const key = String(region?.nonVotingType || 'independent').toLowerCase();
-  return NON_VOTING_TYPES[key] || NON_VOTING_TYPES.independent;
+  const base = NON_VOTING_TYPES[key] || NON_VOTING_TYPES.independent;
+  return {
+    ...base,
+    label: t(base.labelKey)
+  };
 }
 
 function renderStateDetails(region) {
@@ -431,8 +684,8 @@ function renderStateDetails(region) {
   const barsHtml = results
     .map((r) => {
       const color = r.party?.color || 'var(--ink)';
-      const fullName = r.party?.name || r.partyId;
-      const shortName = r.party?.shortName || '';
+      const fullName = r.party ? pick(r.party, 'name') : r.partyId;
+      const shortName = r.party ? pick(r.party, 'shortName') : '';
       return `
         <li class="bar-row">
           <div class="bar-head">
@@ -450,12 +703,22 @@ function renderStateDetails(region) {
     })
     .join('');
 
-  const factsHtml = (region.facts || [])
+  const localizedFacts = pick(region, 'facts');
+  const factsList = Array.isArray(localizedFacts) ? localizedFacts : (region.facts || []);
+  const factsHtml = factsList
     .map((fact) => `<li>${escapeHtml(fact)}</li>`)
     .join('');
 
+  const leaderShort = leader?.party ? pick(leader.party, 'shortName') : '';
+  const leadText =
+    leadMargin !== null
+      ? t('leadsBy', { party: leaderShort, margin: leadMargin })
+      : t('leadsWith', { party: leaderShort, pct: leader?.pct ?? 0 });
+
+  const reasonText = pick(region, 'reason') || t('noReasonSpecified');
+
   details.innerHTML = `
-    <h3 class="panel-title">${escapeHtml(region.name)}</h3>
+    <h3 class="panel-title">${escapeHtml(pick(region, 'name'))}</h3>
     ${isNonVoting
       ? `<div class="lead-badge lead-badge--non-voting">
         <div class="non-voting-head">
@@ -463,36 +726,36 @@ function renderStateDetails(region) {
           <strong>${escapeHtml(nvMeta.label)}</strong>
         </div>
         <p class="non-voting-text">
-          State is not Voting Due to: ${escapeHtml(region.reason || 'No reason specified.')}
+          ${escapeHtml(t('nonVotingReasonPrefix'))} ${escapeHtml(reasonText)}
         </p>
       </div>`
       : leader?.party
         ? `<p class="lead-badge">
               <span class="swatch" style="background:${escapeHtml(accent)}"></span>
-              <span>${escapeHtml(leader.party.shortName)} leads${leadMargin !== null ? ` by ${leadMargin} pts` : ` with ${leader.pct}%`}</span>
+              <span>${escapeHtml(leadText)}</span>
             </p>`
         : ''
     }
 
     <dl class="stat-grid">
       <div class="stat">
-        <dt>Capital</dt>
-        <dd>${escapeHtml(region.capital || '—')}</dd>
+        <dt>${escapeHtml(t('capital'))}</dt>
+        <dd>${escapeHtml(pick(region, 'capital') || '—')}</dd>
       </div>
       <div class="stat">
-        <dt>Population</dt>
+        <dt>${escapeHtml(t('population'))}</dt>
         <dd>${region.population ? formatNumber(region.population) : '—'}</dd>
       </div>
     </dl>
 
     ${barsHtml
-      ? `<h4 class="sub-head">${isNonVoting ? 'Party Popularity' : 'Vote Share'}</h4>
+      ? `<h4 class="sub-head">${escapeHtml(isNonVoting ? t('partyPopularity') : t('voteShare'))}</h4>
            <ul class="bars">${barsHtml}</ul>`
       : ''
     }
 
     ${factsHtml
-      ? `<h4 class="sub-head">Key Facts</h4>
+      ? `<h4 class="sub-head">${escapeHtml(t('keyFacts'))}</h4>
            <ul class="facts">${factsHtml}</ul>`
       : ''
     }
@@ -518,27 +781,29 @@ function renderParties() {
     if (sorted[0]) {
       const pid = sorted[0].partyId;
       statesLedMap[pid] = statesLedMap[pid] || [];
-      statesLedMap[pid].push(s.name);
+      statesLedMap[pid].push(pick(s, 'name'));
     }
   });
 
   grid.innerHTML = state.data.parties
     .map((p) => {
       const led = statesLedMap[p.id] || [];
+      const ideology = pick(p, 'ideology');
+      const stronghold = pick(p, 'stronghold');
       const strongholdText =
         led.length > 0
-          ? `Leads in <strong>${escapeHtml(led.join(', '))}</strong>`
-          : escapeHtml(p.stronghold || 'No state plurality');
+          ? `${escapeHtml(t('leadsIn'))} <strong>${escapeHtml(led.join(', '))}</strong>`
+          : escapeHtml(stronghold || t('noStatePlurality'));
 
       return `
         <article class="party-card" style="--accent:${escapeHtml(p.color)}">
           <div class="party-top">
-            <span class="party-badge">${escapeHtml(p.shortName)}</span>
-            ${p.ideology ? `<span class="ideology-tag">${escapeHtml(p.ideology)}</span>` : ''}
+            <span class="party-badge">${escapeHtml(pick(p, 'shortName'))}</span>
+            ${ideology ? `<span class="ideology-tag">${escapeHtml(ideology)}</span>` : ''}
           </div>
-          <h3 class="party-name">${escapeHtml(p.name)}</h3>
-          <p class="party-leader"><span class="label">Leader</span>${escapeHtml(p.leader || '—')}</p>
-          <p class="party-desc">${escapeHtml(p.description || '')}</p>
+          <h3 class="party-name">${escapeHtml(pick(p, 'name'))}</h3>
+          <p class="party-leader"><span class="label">${escapeHtml(t('leader'))}</span>${escapeHtml(pick(p, 'leader') || '—')}</p>
+          <p class="party-desc">${escapeHtml(pick(p, 'description') || '')}</p>
           <div class="party-foot">${strongholdText}</div>
         </article>`;
     })
@@ -558,8 +823,9 @@ function pickRandomNews(count = 4) {
 
 function renderNewsCard(item, idx, isLead = false) {
   const party = item.partyId ? getParty(item.partyId) : null;
-  const catLabel = party ? party.shortName : item.category || 'Dispatch';
-  const metaParts = [item.date, item.readTime].filter(Boolean).map(escapeHtml);
+  const catLabel = party ? pick(party, 'shortName') : (pick(item, 'category') || t('dispatch'));
+  const metaParts = [pick(item, 'date'), pick(item, 'readTime')].filter(Boolean).map(escapeHtml);
+  const summaryText = pick(item, 'summary') || pick(item, 'dek') || '';
 
   return `
     <article class="news-card${isLead ? ' news-card--lead' : ''}">
@@ -568,14 +834,14 @@ function renderNewsCard(item, idx, isLead = false) {
         ${metaParts.length ? `<span>· ${metaParts.join(' · ')}</span>` : ''}
       </p>
       <h3 class="news-title">
-        <button type="button" class="news-open" data-news-index="${idx}">${escapeHtml(item.title)}</button>
+        <button type="button" class="news-open" data-news-index="${idx}">${escapeHtml(pick(item, 'title'))}</button>
       </h3>
-      <p class="news-summary">${escapeHtml(item.summary || item.dek || '')}</p>
-      <span class="news-more" aria-hidden="true">Read dispatch →</span>
+      <p class="news-summary">${escapeHtml(summaryText)}</p>
+      <span class="news-more" aria-hidden="true">${escapeHtml(t('readDispatch'))}</span>
     </article>`;
 }
 
-function renderNews(announce = false) {
+function renderNews(announce = false, reshuffle = true) {
   const grid = $('newsGrid');
   const shuffleBtn = $('shuffleNews');
   if (!grid || !state.data?.news) return;
@@ -586,7 +852,9 @@ function renderNews(announce = false) {
   }
 
   setTimeout(() => {
-    state.displayedNews = pickRandomNews(4);
+    if (reshuffle || !state.displayedNews.length) {
+      state.displayedNews = pickRandomNews(4);
+    }
     const [lead, ...rest] = state.displayedNews;
 
     grid.innerHTML =
@@ -606,7 +874,7 @@ function renderNews(announce = false) {
     if (shuffleBtn) shuffleBtn.classList.remove('is-spinning');
 
     if (announce && $('newsStatus')) {
-      $('newsStatus').textContent = 'Loaded four new stories.';
+      $('newsStatus').textContent = t('newsLoadedStatus');
     }
   }, announce ? 180 : 0);
 }
@@ -616,17 +884,22 @@ function openArticleModal(article) {
   if (!modal) return;
 
   if ($('modalMeta')) {
-    $('modalMeta').textContent = [article.category, article.date, article.readTime]
+    $('modalMeta').textContent = [
+      pick(article, 'category'),
+      pick(article, 'date'),
+      pick(article, 'readTime')
+    ]
       .filter(Boolean)
       .join(' · ');
   }
-  if ($('modalTitle')) $('modalTitle').textContent = article.title || '';
-  if ($('modalDek')) $('modalDek').textContent = article.summary || article.dek || '';
+  if ($('modalTitle')) $('modalTitle').textContent = pick(article, 'title') || '';
+  if ($('modalDek')) $('modalDek').textContent = pick(article, 'summary') || pick(article, 'dek') || '';
 
   if ($('modalBody')) {
-    const paragraphs = Array.isArray(article.body)
-      ? article.body
-      : String(article.body || article.summary || '').split(/\n\n+/);
+    const rawBody = pick(article, 'body') || pick(article, 'summary') || '';
+    const paragraphs = Array.isArray(rawBody)
+      ? rawBody
+      : String(rawBody).split(/\n\n+/);
     $('modalBody').innerHTML = paragraphs.map((p) => `<p>${escapeHtml(p)}</p>`).join('');
   }
 
@@ -659,12 +932,13 @@ function renderComments() {
   const avatarColors = ['#1A7DB1', '#2E6F40', '#B45309', '#991B1B', '#4338CA', '#3F3F46'];
 
   if ($('commentCount')) {
-    $('commentCount').textContent = `${comments.length} recent messages from Telegram`;
+    $('commentCount').textContent = t('recentMessages', { count: comments.length });
   }
 
   list.innerHTML = comments
     .map((c, idx) => {
-      const initials = (c.author || '?')
+      const authorName = pick(c, 'author') || t('readerFallback');
+      const initials = authorName
         .split(/\s+/)
         .map((w) => w[0])
         .join('')
@@ -676,16 +950,15 @@ function renderComments() {
           <div class="avatar" style="background:${bg}" aria-hidden="true">${escapeHtml(initials)}</div>
           <div>
             <div class="comment-meta">
-              <span class="comment-author">${escapeHtml(c.author || 'Reader')}</span>
-              ${c.time ? `<time>${escapeHtml(c.time)}</time>` : ''}
+              <span class="comment-author">${escapeHtml(authorName)}</span>
+              ${pick(c, 'time') ? `<time>${escapeHtml(pick(c, 'time'))}</time>` : ''}
             </div>
-            <p class="comment-text">${escapeHtml(c.text || '')}</p>
+            <p class="comment-text">${escapeHtml(pick(c, 'text') || '')}</p>
           </div>
         </li>`;
     })
     .join('');
 }
-
 /* ---------------- BOOTSTRAP ---------------- */
 
 async function init() {
@@ -696,16 +969,10 @@ async function init() {
     }
     state.data = await response.json();
 
-    renderSiteMeta();
-    initMap();
-    renderLegend();
-    renderStateChips();
-    renderParties();
-    renderNews(false);
-    renderComments();
+    initLanguageSwitch();
 
     if ($('shuffleNews')) {
-      $('shuffleNews').addEventListener('click', () => renderNews(true));
+      $('shuffleNews').addEventListener('click', () => renderNews(true, true));
     }
     if ($('modalClose')) {
       $('modalClose').addEventListener('click', closeArticleModal);

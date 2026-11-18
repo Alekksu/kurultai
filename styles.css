@@ -277,6 +277,37 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0
   font-weight: 400;
 }
 
+.lang-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lang-btn {
+  background: transparent;
+  border: 1px solid var(--line, #d6d2c4);
+  border-radius: 4px;
+  padding: 2px 7px;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--muted, #6b685f);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.lang-btn:hover {
+  color: var(--ink, #1c1b18);
+  border-color: var(--ink, #1c1b18);
+}
+
+.lang-btn.is-active {
+  background: var(--ink, #1c1b18);
+  border-color: var(--ink, #1c1b18);
+  color: #fff;
+}
+
 .non-voting-head {
   display: flex;
   align-items: center;
