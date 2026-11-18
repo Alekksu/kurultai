@@ -342,7 +342,7 @@ function renderSiteMeta() {
     );
   }
 
-const telegramUrl = site.telegramUrl || 'https://t.me/join/kurultaikvlt';
+const telegramUrl = site.telegramUrl || 'https://t.me/kurultaikvlt';
   document.querySelectorAll('[data-telegram]').forEach((el) => {
     el.href = telegramUrl;
     el.target = '_blank';
