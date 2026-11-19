@@ -342,7 +342,7 @@ function renderSiteMeta() {
     );
   }
 
-const telegramUrl = site.telegramUrl || 'https://t.me/kurultaikvlt';
+const telegramUrl = site.telegramUrl || 'https://t.me/+vNRX4_hP69xlNjIy';
   document.querySelectorAll('[data-telegram]').forEach((el) => {
     el.href = telegramUrl;
     el.target = '_blank';
@@ -559,6 +559,7 @@ function renderLegend() {
   });
 
   legend.innerHTML = state.data.parties
+    .filter((p) => !p.nonVoting)
     .map((p) => {
       const count = winCounts[p.id] || 0;
       const statesLabel = t('ofStates', { count, total: totalVoting });
